@@ -4,6 +4,9 @@
 #include <vector>
 #include <cassert>
 #include <iostream>
+#define M_PI 3.1415926
+
+
 
 template<size_t DimCols,size_t DimRows,typename T> class mat;
 
@@ -84,6 +87,10 @@ template<size_t LEN,size_t DIM, typename T> vec<LEN,T> proj(const vec<DIM,T> &v)
 
 template <typename T> vec<3,T> cross(vec<3,T> v1, vec<3,T> v2) {
     return vec<3,T>(v1.y*v2.z - v1.z*v2.y, v1.z*v2.x - v1.x*v2.z, v1.x*v2.y - v1.y*v2.x);
+}
+
+template <typename T> T dot(vec<3,T> v1,vec<3,T> v2){
+ return v1.x*v2.x+v1.y*v2.y+v1.z*v2.z;
 }
 
 template <size_t DIM, typename T> std::ostream& operator<<(std::ostream& out, vec<DIM,T>& v) {
@@ -211,10 +218,14 @@ template <size_t DimRows,size_t DimCols,class T> std::ostream& operator<<(std::o
 
 /////////////////////////////////////////////////////////////////////////////////
 
+
 typedef vec<2,  float> Vec2f;
 typedef vec<2,  int>   Vec2i;
 typedef vec<3,  float> Vec3f;
 typedef vec<3,  int>   Vec3i;
 typedef vec<4,  float> Vec4f;
 typedef mat<4,4,float> Matrix;
+
+
+
 #endif //__GEOMETRY_H__

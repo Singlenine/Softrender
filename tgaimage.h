@@ -5,18 +5,18 @@
 
 #pragma pack(push,1)
 struct TGA_Header {
-    char idlength;
-    char colormaptype;
-    char datatypecode;
-    short colormaporigin;
-    short colormaplength;
-    char colormapdepth;
-    short x_origin;
-    short y_origin;
-    short width;
-    short height;
-    char  bitsperpixel;
-    char  imagedescriptor;
+    char idlength;//ID字段长度
+    char colormaptype;//颜色表类型
+    char datatypecode;//数据类型码
+    short colormaporigin;//颜色表起点
+    short colormaplength;//颜色表长度
+    char colormapdepth;//颜色表深度
+    short x_origin;//X原点
+    short y_origin;//Y原点
+    short width;//宽度
+    short height;//高度
+    char  bitsperpixel;//每像素位数
+    char  imagedescriptor;//图像描述符
 };
 #pragma pack(pop)
 

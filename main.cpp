@@ -6,7 +6,6 @@
 #include <iostream>
 #include <stdexcept>
 #include <limits>
-
 const TGAColor white = TGAColor(255, 255, 255, 255);
 const TGAColor red   = TGAColor(255, 0,   0,   255);
 const TGAColor green = TGAColor(0,   255, 0,   255);
@@ -198,6 +197,7 @@ int main(int argc, char** argv) {
         textureTga->flip_vertically();
     } else {
       // 默认加载模型和纹理
+
       model = new Model("obj/african_head/african_head.obj");
       textureTga = new TGAImage;
       if (textureTga->read_tga_file("obj/african_head/african_head_diffuse.tga")) {
@@ -211,12 +211,31 @@ int main(int argc, char** argv) {
       }
     }
 
+////以上为初始化引入模型，纹理
     float *zbuffer = new float[width*height];
+    Vec3f min_vert(1e9, 1e9, 1e9);
+    Vec3f max_vert(-1e9, -1e9, -1e9);
+    for (int i = 0; i < model->nverts(); i++) {
+      Vec3f v = model->vert(i);
+      for (int j = 0; j < 3; j++) {
+        min_vert[j] = std::min(min_vert[j], v[j]);
+        max_vert[j] = std::max(max_vert[j], v[j]);
+      }
+    }
+
+// 计算缩放因子
+float scale_x = 2.0f / (max_vert.x - min_vert.x);
+float scale_y = 2.0f / (max_vert.y - min_vert.y);
+float scale = std::min(scale_x, scale_y) * 0.5f;  // 留点边距
+
+// 计算中心偏移
+Vec3f center = (min_vert + max_vert) * 0.5f;
     for (int i=width*height; i--; zbuffer[i] = -std::numeric_limits<float>::max());
 
     TGAImage image(width, height, TGAImage::RGB);
 
     Vec3f light_dir(0, 0, -1);
+
 
 // //按颜色插值
 //    for (int i=0; i<model->nfaces(); i++) {
@@ -248,7 +267,9 @@ int main(int argc, char** argv) {
         std::vector<std::pair<int,int>> face = model->face(i);
         Vec3f pts[3];
 
-        for (int j=0; j<3; j++) pts[j] = model->vert(face[j].first);
+        for (int j=0; j<3; j++) {
+           pts[j] = world2screen(model->vert(face[j].first));
+        }
 
         Vec3f n = cross(pts[2]-pts[0], pts[1]-pts[0]);
 
@@ -259,7 +280,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    image.flip_vertically(); // i want to have the origin at the left bottom corner of the image
+    image.flip_vertically(); 
     image.write_tga_file("output.tga");
     
     // 释放内存
