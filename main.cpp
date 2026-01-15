@@ -264,17 +264,14 @@ Vec3f center = (min_vert + max_vert) * 0.5f;
 
 // 按uv插值
     for (int i=0; i<model->nfaces(); i++) {
-        std::vector<std::pair<int,int>> face = model->face(i);
-        Vec3f pts[3];
-
+        std::vector<std::pair<int,int>> face = model->face(i);//2026-01-15修复了原来的贴图问题
+        Vec3f world_pts[3];
         for (int j=0; j<3; j++) {
-           pts[j] = world2screen(model->vert(face[j].first));
+          world_pts[j] = model->vert(face[j].first);
         }
-
-        Vec3f n = cross(pts[2]-pts[0], pts[1]-pts[0]);
-
+        Vec3f n = cross(world_pts[2]-world_pts[0], world_pts[1]-world_pts[0]);
         n.normalize();
-        float intensity = n*light_dir;
+        float intensity = n * light_dir;
         if (intensity>0) {
             triangle(face, model, textureTga, zbuffer, image, intensity);
         }

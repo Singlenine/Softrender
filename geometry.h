@@ -216,6 +216,8 @@ template <size_t DimRows,size_t DimCols,class T> std::ostream& operator<<(std::o
     return out;
 }
 
+
+
 /////////////////////////////////////////////////////////////////////////////////
 
 
