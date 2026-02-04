@@ -1,288 +1,69 @@
-#include "tgaimage.h"
-#include "geometry.h"
+#include "our_gl.h"
 #include "model.h"
 
-#include <cmath>
-#include <iostream>
-#include <stdexcept>
-#include <limits>
-const TGAColor white = TGAColor(255, 255, 255, 255);
-const TGAColor red   = TGAColor(255, 0,   0,   255);
-const TGAColor green = TGAColor(0,   255, 0,   255);
-const TGAColor blue  = TGAColor(0,   0,   255, 255);
-const int width  = 800;
-const int height = 800;
+extern mat<4,4> ModelView, Perspective; // "OpenGL" state matrices and
+extern std::vector<double> zbuffer;     // the depth buffer
 
-Vec3f world2screen(Vec3f v) {
-    // 向上舍入
-    return Vec3f(static_cast<int>((v.x+1.f)*width/2.f+0.5f), 
-                 static_cast<int>((v.y+1.f)*height/2.f+0.5f), 
-                 v.z);
-}
+struct PhongShader : IShader {
+    const Model &model;
+    vec3 l;          // light direction in eye coordinates
+    vec3 tri[3];     // triangle in eye coordinates
 
-std::pair<int,int> computeUV(float u, float v, TGAImage* textureTga) {
-    if (textureTga == nullptr) return {0, 0};
-    return {static_cast<int>(u*textureTga->get_width()), static_cast<int>(v*textureTga->get_height())};
-}
-
-Vec3f barycentric(Vec3f *pts, Vec3f P) {
-    Vec3f u = cross(Vec3f(pts[2][0]-pts[0][0], pts[1][0]-pts[0][0], pts[0][0]-P[0]), Vec3f(pts[2][1]-pts[0][1], pts[1][1]-pts[0][1], pts[0][1]-P[1]));
-    if (std::abs(u[2])<1) return Vec3f(-1,1,1);
-    return {1.f-(u.x+u.y)/u.z, u.y/u.z, u.x/u.z};
-}
-
-// 画线
-void line(Vec2i t0, Vec2i t1, TGAImage &image, TGAColor color) { 
-    int x0 = t0.x, y0 = t0.y;
-    int x1 = t1.x, y1 = t1.y;
-    
-    bool steep = false; 
-    if (std::abs(x0-x1)<std::abs(y0-y1)) { 
-        std::swap(x0, y0); 
-        std::swap(x1, y1); 
-        steep = true; 
-    } 
-    
-    if(x0 > x1) {
-        std::swap(x0, x1);
-        std::swap(y0, y1);
+    PhongShader(const vec3 light, const Model &m) : model(m) {
+        l = normalized((ModelView*vec4{light.x, light.y, light.z, 0.}).xyz()); // transform the light vector to view coordinates
     }
 
-    int dX = std::round(fabs(x1 - x0));
-    int dY = std::round(fabs(y1 - y0));
-    int delta = dX - 2 * dY;
-
-    int dStepUp = 2 * (dX - dY);
-    int dStepDown = -2 * dY;
-
-    int x = x0, y = y0;
-
-    for(int i = x; i <= x1; i++) {
-        !steep ? image.set(i, y, color)
-               : image.set(y, i, color);
-        if(delta < 0) {
-            y += (y0<y1?1:-1);
-            delta += dStepUp;
-        } else {
-            delta += dStepDown;
-        }
-    }
-}
-
-// Sweeping Line
-void triangle0(Vec2i t0, Vec2i t1, Vec2i t2, TGAImage& image, TGAColor color) {
-    if(t0.y > t1.y) std::swap(t0, t1);
-    if(t0.y > t2.y) std::swap(t0, t2);
-    if(t1.y > t2.y) std::swap(t1, t2);
-
-    int h1 = t2.y - t0.y;
-    int h2 = t1.y - t0.y;
-    int h3 = t2.y - t1.y;
-
-    for(int i = 0; i <= h1; i++) {
-        bool halfPart = i > h2 || t1.y == t0.y;
-
-        int segmentHeight = halfPart ? h3 : h2;
-
-        float alpha = (float)i / h1;
-        float beta  = (float)(i - (halfPart ? h2 : 0)) / segmentHeight;
-
-        Vec2i startPoint = t0 + (t2-t0)*alpha;
-        Vec2i endPoint   = halfPart ? t1 + (t2-t1)*beta : t0 + (t1-t0)*beta;
-
-        if(startPoint.x > endPoint.x) std::swap(startPoint, endPoint);
-        for(int j = startPoint.x; j <= endPoint.x; j++) {
-            image.set(j, t0.y+i, color);
-        }
-    }
-}
-
-// 通过顶点颜色插值
-void triangle0(Vec3f *pts, float *zbuffer, TGAImage &image, TGAColor* colors) {
-   Vec2f bboxmin( std::numeric_limits<float>::max(),  std::numeric_limits<float>::max());
-  Vec2f bboxmax(-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max());
-  Vec2f clamp(image.get_width()-1, image.get_height()-1);
-
-    for (int i=0; i<3; i++) {
-        for (int j=0; j<2; j++) {
-            bboxmin[j] = std::max(0.f,      std::min(bboxmin[j], pts[i][j]));
-            bboxmax[j] = std::min(clamp[j], std::max(bboxmax[j], pts[i][j]));
-        }
-    }
-    
-    Vec3f P;
-    for (P.x=bboxmin.x; P.x<=bboxmax.x; P.x++) {
-        for (P.y=bboxmin.y; P.y<=bboxmax.y; P.y++) {
-            Vec3f bc_screen = barycentric(pts, P);
-            if (bc_screen.x<0 || bc_screen.y<0 || bc_screen.z<0) continue;
-            P.z = 0;
-            TGAColor color;
-            for (int i=0; i<3; i++) {
-                P.z += pts[i][2]*bc_screen[i];
-                for(int j = 0;j < 4;j++){
-                    color.bgra[j] += colors[i].bgra[j]*bc_screen[i];
-                }
-            }
-            int idx = static_cast<int>(P.x + P.y*width);
-            if (zbuffer[idx] < P.z) {
-                zbuffer[idx] = P.z;
-                image.set(static_cast<int>(P.x), static_cast<int>(P.y), color);
-            }
-        }
-    }
-}
-
-// 通过顶点uv插值
-void triangle(std::vector<std::pair<int,int>>& face, Model* model, TGAImage* textureTga,
-              float* zbuffer, TGAImage& image, float intensity) {
-    Vec2f bboxmin( std::numeric_limits<float>::max(),  std::numeric_limits<float>::max());
-    Vec2f bboxmax(-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max());
-    Vec2f clamp(image.get_width()-1, image.get_height()-1);
-
-    Vec3f pts[3];
-    for(int i=0; i<3; i++) {
-        pts[i] = world2screen(model->vert(face[i].first));
+    virtual vec4 vertex(const int face, const int vert) {
+        vec3 v = model.vert(face, vert);                          // current vertex in object coordinates
+        vec4 gl_Position = ModelView * vec4{v.x, v.y, v.z, 1.};
+        tri[vert] = gl_Position.xyz();                            // in eye coordinates
+        return Perspective * gl_Position;                         // in clip coordinates
     }
 
-    for (int i=0; i<3; i++) {
-        for (int j=0; j<2; j++) {
-            bboxmin[j] = std::max(0.f,      std::min(bboxmin[j], pts[i][j]));
-            bboxmax[j] = std::min(clamp[j], std::max(bboxmax[j], pts[i][j]));
-        }
+    virtual std::pair<bool,TGAColor> fragment(const vec3 bar) const {
+        TGAColor gl_FragColor = {255, 255, 255, 255};             // output color of the fragment
+        vec3 n = normalized(cross(tri[1]-tri[0], tri[2]-tri[0])); // triangle normal in eye coordinates
+        vec3 r = normalized(n * (n * l)*2 - l);                   // reflected light direction
+        double ambient = .3;                                      // ambient light intensity
+        double diff = std::max(0., n * l);                        // diffuse light intensity
+        double spec = std::pow(std::max(r.z, 0.), 35);            // specular intensity, note that the camera lies on the z-axis (in eye coordinates), therefore simple r.z, since (0,0,1)*(r.x, r.y, r.z) = r.z
+        for (int channel : {0,1,2})
+            gl_FragColor[channel] *= std::min(1., ambient + .4*diff + .9*spec);
+        return {false, gl_FragColor};                             // do not discard the pixel
     }
-
-    Vec3f P;
-    for (P.x=bboxmin.x; P.x<=bboxmax.x; P.x++) {
-        for (P.y=bboxmin.y; P.y<=bboxmax.y; P.y++) {
-            Vec3f bc_screen = barycentric(pts, P);
-            if (bc_screen.x<0 || bc_screen.y<0 || bc_screen.z<0) continue;
-
-            P.z = 0;
-            float u = 0.0,v = 0.0;
-            TGAColor color;
-
-            for (int i=0; i<3; i++) {
-                P.z += pts[i][2]*bc_screen[i];
-                u += model->uv(face[i].second)[0]*bc_screen[i];
-                v += model->uv(face[i].second)[1]*bc_screen[i];
-            }
-
-            if (textureTga != nullptr) {
-                auto[X,Y] = computeUV(u,v,textureTga);
-                color = textureTga->get(X, Y);
-                color = color * intensity;
-            } else {
-                // 如果没有纹理，使用白色并应用光照
-                color = white * intensity;
-            }
-
-            int idx = static_cast<int>(P.x + P.y*width);
-            if (zbuffer[idx] < P.z) {
-                zbuffer[idx] = P.z;
-                image.set(static_cast<int>(P.x), static_cast<int>(P.y), color);
-            }
-        }
-    }
-}
+};
 
 int main(int argc, char** argv) {
-    Model* model = nullptr;
-    TGAImage* textureTga = nullptr;
-    if (2==argc) {
-        model = new Model(argv[1]);
-    } else if(3==argc){
-        model = new Model(argv[1]);
-        textureTga = new TGAImage;
-        textureTga->read_tga_file(argv[2]);
-        textureTga->flip_vertically();
-    } else {
-      // 默认加载模型和纹理
-
-      model = new Model("obj/african_head/african_head.obj");
-      textureTga = new TGAImage;
-      if (textureTga->read_tga_file("obj/african_head/african_head_diffuse.tga")) {
-          textureTga->flip_vertically();
-          std::cout<<"Texture load win"<<std::endl;
-      } else {
-          // 如果纹理加载失败，删除指针
-          delete textureTga;
-          textureTga = nullptr;
-          std::cout<<"Texture load fali"<<std::endl;
-      }
+    if (argc < 2) {
+        std::cerr << "Usage: " << argv[0] << " obj/model.obj" << std::endl;
+        return 1;
     }
 
-////以上为初始化引入模型，纹理
-    float *zbuffer = new float[width*height];
-    Vec3f min_vert(1e9, 1e9, 1e9);
-    Vec3f max_vert(-1e9, -1e9, -1e9);
-    for (int i = 0; i < model->nverts(); i++) {
-      Vec3f v = model->vert(i);
-      for (int j = 0; j < 3; j++) {
-        min_vert[j] = std::min(min_vert[j], v[j]);
-        max_vert[j] = std::max(max_vert[j], v[j]);
-      }
-    }
+    constexpr int width  = 800;      // output image size
+    constexpr int height = 800;
+    constexpr vec3  light{ 1, 1, 1}; // light source
+    constexpr vec3    eye{-1, 0, 2}; // camera position
+    constexpr vec3 center{ 0, 0, 0}; // camera direction
+    constexpr vec3     up{ 0, 1, 0}; // camera up vector
 
-// 计算缩放因子
-float scale_x = 2.0f / (max_vert.x - min_vert.x);
-float scale_y = 2.0f / (max_vert.y - min_vert.y);
-float scale = std::min(scale_x, scale_y) * 0.5f;  // 留点边距
+    lookat(eye, center, up);                                   // build the ModelView   matrix
+    init_perspective(norm(eye-center));                        // build the Perspective matrix
+    init_viewport(width/16, height/16, width*7/8, height*7/8); // build the Viewport    matrix
+    init_zbuffer(width, height);
+    TGAImage framebuffer(width, height, TGAImage::RGB);
 
-// 计算中心偏移
-Vec3f center = (min_vert + max_vert) * 0.5f;
-    for (int i=width*height; i--; zbuffer[i] = -std::numeric_limits<float>::max());
-
-    TGAImage image(width, height, TGAImage::RGB);
-
-    Vec3f light_dir(0, 0, -1);
-
-
-// //按颜色插值
-//    for (int i=0; i<model->nfaces(); i++) {
-//        std::vector<std::pair<int,int>> face = model->face(i);
-//        Vec3f pts[3];
-//        TGAColor colors[3];
-
-//        for (int i=0; i<3; i++) {
-//            pts[i] = model->vert(face[i].first);
-//            int X = model->uv(face[i].second)[0] * textureTga->get_width();
-//            int Y = model->uv(face[i].second)[1] * textureTga->get_height();
-//            colors[i] = textureTga->get(X,Y);
-//        }
-
-//        Vec3f n = cross(pts[2]-pts[0], pts[1]-pts[0]);
-
-//        for(int i=0; i<3; i++) pts[i] = world2screen(pts[i]);
-
-//        n.normalize();
-//        float intensity = n*light_dir;
-//        if (intensity>0) {
-//            for(int i=0;i<3;i++) colors[i] = colors[i]*intensity;
-//            triangle0(pts, zbuffer, image, colors);
-//        }
-//    }
-
-// 按uv插值
-    for (int i=0; i<model->nfaces(); i++) {
-        std::vector<std::pair<int,int>> face = model->face(i);//2026-01-15修复了原来的贴图问题
-        Vec3f world_pts[3];
-        for (int j=0; j<3; j++) {
-          world_pts[j] = model->vert(face[j].first);
-        }
-        Vec3f n = cross(world_pts[2]-world_pts[0], world_pts[1]-world_pts[0]);
-        n.normalize();
-        float intensity = n * light_dir;
-        if (intensity>0) {
-            triangle(face, model, textureTga, zbuffer, image, intensity);
+    for (int m=1; m<argc; m++) {                    // iterate through all input objects
+        Model model(argv[m]);                       // load the data
+        PhongShader shader(light, model);
+        for (int f=0; f<model.nfaces(); f++) {      // iterate through all facets
+            Triangle clip = { shader.vertex(f, 0),  // assemble the primitive.\tinyrenderer.exe E:\CodeFile\SoftRender\tinyrenderer\obj\african_head.obj
+                              shader.vertex(f, 1),
+                              shader.vertex(f, 2) };
+            rasterize(clip, shader, framebuffer);   // rasterize the primitive
         }
     }
 
-    image.flip_vertically(); 
-    image.write_tga_file("output.tga");
-    
-    // 释放内存
-    delete model;
-    delete textureTga;
-    delete[] zbuffer;
+    framebuffer.write_tga_file("framebuffer.tga");
     return 0;
 }
+
