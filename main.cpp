@@ -1,5 +1,6 @@
-#include "our_gl.h"
+﻿#include "our_gl.h"
 #include "model.h"
+#include "smooth_shader.h"
 
 extern mat<4,4> ModelView, Perspective; // "OpenGL" state matrices and
 extern std::vector<double> zbuffer;     // the depth buffer
@@ -54,7 +55,7 @@ int main(int argc, char** argv) {
 
     for (int m=1; m<argc; m++) {                    // iterate through all input objects
         Model model(argv[m]);                       // load the data
-        PhongShader shader(light, model);
+        SmoothShader shader(light, model);
         for (int f=0; f<model.nfaces(); f++) {      // iterate through all facets
             Triangle clip = { shader.vertex(f, 0),  // assemble the primitive.\tinyrenderer.exe E:\CodeFile\SoftRender\tinyrenderer\obj\african_head.obj
                               shader.vertex(f, 1),
@@ -62,7 +63,6 @@ int main(int argc, char** argv) {
             rasterize(clip, shader, framebuffer);   // rasterize the primitive
         }
     }
-
     framebuffer.write_tga_file("framebuffer.tga");
     return 0;
 }

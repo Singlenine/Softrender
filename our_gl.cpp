@@ -1,4 +1,4 @@
-#include <algorithm>
+﻿#include <algorithm>
 #include "our_gl.h"
 
 mat<4,4> ModelView, Viewport, Perspective; // "OpenGL" state matrices
@@ -47,4 +47,3 @@ void rasterize(const Triangle &clip, const IShader &shader, TGAImage &framebuffe
         }
     }
 }
-
