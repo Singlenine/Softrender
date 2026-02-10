@@ -5,38 +5,9 @@
 extern mat<4,4> ModelView, Perspective; // "OpenGL" state matrices and
 extern std::vector<double> zbuffer;     // the depth buffer
 
-struct PhongShader : IShader {
-    const Model &model;
-    vec3 l;          // light direction in eye coordinates
-    vec3 tri[3];     // triangle in eye coordinates
-
-    PhongShader(const vec3 light, const Model &m) : model(m) {
-        l = normalized((ModelView*vec4{light.x, light.y, light.z, 0.}).xyz()); // transform the light vector to view coordinates
-    }
-
-    virtual vec4 vertex(const int face, const int vert) {
-        vec3 v = model.vert(face, vert);                          // current vertex in object coordinates
-        vec4 gl_Position = ModelView * vec4{v.x, v.y, v.z, 1.};
-        tri[vert] = gl_Position.xyz();                            // in eye coordinates
-        return Perspective * gl_Position;                         // in clip coordinates
-    }
-
-    virtual std::pair<bool,TGAColor> fragment(const vec3 bar) const {
-        TGAColor gl_FragColor = {255, 255, 255, 255};             // output color of the fragment
-        vec3 n = normalized(cross(tri[1]-tri[0], tri[2]-tri[0])); // triangle normal in eye coordinates
-        vec3 r = normalized(n * (n * l)*2 - l);                   // reflected light direction
-        double ambient = .3;                                      // ambient light intensity
-        double diff = std::max(0., n * l);                        // diffuse light intensity
-        double spec = std::pow(std::max(r.z, 0.), 35);            // specular intensity, note that the camera lies on the z-axis (in eye coordinates), therefore simple r.z, since (0,0,1)*(r.x, r.y, r.z) = r.z
-        for (int channel : {0,1,2})
-            gl_FragColor[channel] *= std::min(1., ambient + .4*diff + .9*spec);
-        return {false, gl_FragColor};                             // do not discard the pixel
-    }
-};
-
 int main(int argc, char** argv) {
     if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " obj/model.obj" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " model.obj normal_map.tga" << std::endl;
         return 1;
     }
 
@@ -53,16 +24,17 @@ int main(int argc, char** argv) {
     init_zbuffer(width, height);
     TGAImage framebuffer(width, height, TGAImage::RGB);
 
-    for (int m=1; m<argc; m++) {                    // iterate through all input objects
+   for (int m=1; m<argc; m++) {                    // iterate through all input objects
         Model model(argv[m]);                       // load the data
         SmoothShader shader(light, model);
         for (int f=0; f<model.nfaces(); f++) {      // iterate through all facets
-            Triangle clip = { shader.vertex(f, 0),  // assemble the primitive.\tinyrenderer.exe E:\CodeFile\SoftRender\tinyrenderer\obj\african_head.obj
+            Triangle clip = { shader.vertex(f, 0),  // assemble the primitive
                               shader.vertex(f, 1),
                               shader.vertex(f, 2) };
             rasterize(clip, shader, framebuffer);   // rasterize the primitive
         }
     }
+
     framebuffer.write_tga_file("framebuffer.tga");
     return 0;
 }
