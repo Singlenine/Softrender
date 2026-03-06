@@ -1,8 +1,9 @@
 ﻿#include <fstream>
 #include <sstream>
+#include <algorithm>
 #include "model.h"
 
-Model::Model(const std::string filename) {
+Model::Model(const std::string filename, const std::string diffuse_tex, const std::string normal_tex) {
     std::ifstream in;
     in.open(filename, std::ifstream::in);
     if (in.fail()) return;
@@ -42,13 +43,17 @@ Model::Model(const std::string filename) {
         }
     }
     std::cerr << "# v# " << nverts() << " f# "  << nfaces() << std::endl;
-    auto load_texture = [&filename](const std::string suffix, TGAImage &img) {
-        size_t dot = filename.find_last_of(".");
-        if (dot==std::string::npos) return;
-        std::string texfile = filename.substr(0,dot) + suffix;
+    auto load_texture = [&filename](const std::string suffix, const std::string explicit_path, TGAImage &img) {
+        std::string texfile = explicit_path;
+        if (texfile.empty()) {
+            size_t dot = filename.find_last_of(".");
+            if (dot==std::string::npos) return;
+            texfile = filename.substr(0,dot) + suffix;
+        }
         std::cerr << "texture file " << texfile << " loading " << (img.read_tga_file(texfile.c_str()) ? "ok" : "failed") << std::endl;
     };
-    load_texture("_nm.tga", normalmap);
+    load_texture("_diffuse.tga", diffuse_tex, diffusemap);
+    load_texture("_nm.tga", normal_tex, normalmap);
 }
 
 int Model::nverts() const { return verts.size(); }
@@ -67,11 +72,24 @@ vec4 Model::normal(const int iface, const int nthvert) const {
 }
 
 vec4 Model::normal(const vec2 &uv) const {
-    TGAColor c = normalmap.get(uv[0]*normalmap.width(), uv[1]*normalmap.height());
+    if (normalmap.width() == 0 || normalmap.height() == 0) {
+        return vec4{0, 0, 1, 0};
+    }
+    int x = std::clamp(static_cast<int>(uv[0]*normalmap.width()), 0, normalmap.width()-1);
+    int y = std::clamp(static_cast<int>(uv[1]*normalmap.height()), 0, normalmap.height()-1);
+    TGAColor c = normalmap.get(x, y);
     return vec4{(double)c[2],(double)c[1],(double)c[0],0}*2./255. - vec4{1,1,1,0};
+}
+
+TGAColor Model::diffuse(const vec2 &uv) const {
+    if (diffusemap.width() == 0 || diffusemap.height() == 0) {
+        return TGAColor{{255,255,255,255}, 4};
+    }
+    int x = std::clamp(static_cast<int>(uv[0]*diffusemap.width()), 0, diffusemap.width()-1);
+    int y = std::clamp(static_cast<int>(uv[1]*diffusemap.height()), 0, diffusemap.height()-1);
+    return diffusemap.get(x, y);
 }
 
 vec2 Model::uv(const int iface, const int nthvert) const {
     return tex[facet_tex[iface*3+nthvert]];
 }
-

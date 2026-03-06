@@ -7,7 +7,7 @@ extern std::vector<double> zbuffer;     // the depth buffer
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " model.obj normal_map.tga" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " model.obj [diffuse.tga] [normal.tga]" << std::endl;
         return 1;
     }
 
@@ -24,18 +24,19 @@ int main(int argc, char** argv) {
     init_zbuffer(width, height);
     TGAImage framebuffer(width, height, TGAImage::RGB);
 
-   for (int m=1; m<argc; m++) {                    // iterate through all input objects
-        Model model(argv[m]);                       // load the data
-        SmoothShader shader(light, model);
-        for (int f=0; f<model.nfaces(); f++) {      // iterate through all facets
-            Triangle clip = { shader.vertex(f, 0),  // assemble the primitive
-                              shader.vertex(f, 1),
-                              shader.vertex(f, 2) };
-            rasterize(clip, shader, framebuffer);   // rasterize the primitive
-        }
+    const std::string model_path = argv[1];
+    const std::string diffuse_path = (argc > 2) ? argv[2] : "";
+    const std::string normal_path = (argc > 3) ? argv[3] : "";
+
+    Model model(model_path, diffuse_path, normal_path); // load model + optional textures
+    SmoothShader shader(light, model);
+    for (int f=0; f<model.nfaces(); f++) {              // iterate through all facets
+        Triangle clip = { shader.vertex(f, 0),          // assemble the primitive
+                          shader.vertex(f, 1),
+                          shader.vertex(f, 2) };
+        rasterize(clip, shader, framebuffer);           // rasterize the primitive
     }
 
     framebuffer.write_tga_file("framebuffer.tga");
     return 0;
 }
-
