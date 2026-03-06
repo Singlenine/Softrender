@@ -93,3 +93,4 @@ TGAColor Model::diffuse(const vec2 &uv) const {
 vec2 Model::uv(const int iface, const int nthvert) const {
     return tex[facet_tex[iface*3+nthvert]];
 }
+
