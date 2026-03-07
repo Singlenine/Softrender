@@ -1,4 +1,4 @@
-#include <limits>
+﻿#include <limits>
 
 #include "our_gl.h"
 #include "model.h"
@@ -18,7 +18,7 @@ int main(int argc, char** argv) {
     constexpr int shadoww = 8000;    // shadow map buffer size
     constexpr int shadowh = 8000;
     constexpr vec3  light{ 1, 1, 1}; // light source
-    constexpr vec3    eye{2, 3, 8};  // camera position
+    constexpr vec3    eye{-1, 0, 2}; // camera position
     constexpr vec3 center{ 0, 0, 0}; // camera direction
     constexpr vec3     up{ 0, 1, 0}; // camera up vector
 
@@ -80,6 +80,22 @@ int main(int argc, char** argv) {
                           head_shader.vertex(f, 1),
                           head_shader.vertex(f, 2) };
         rasterize(clip, head_shader, framebuffer, zbuffer);           // rasterize the primitive
+    }
+
+    // Debug marker: project the light position into current camera view and draw a red cross.
+    vec4 light_clip = Perspective * (ModelView * vec4{light.x, light.y, light.z, 1.0});
+    vec4 light_ndc = light_clip / light_clip.w;
+    vec2 light_screen = (Viewport * light_ndc).xy();
+    const int lx = static_cast<int>(light_screen.x);
+    const int ly = static_cast<int>(light_screen.y);
+    const TGAColor red = TGAColor{{0, 0, 255, 255}, 4};
+    for (int d = -4; d <= 4; ++d) {
+        int xh = lx + d;
+        int yh = ly;
+        if (xh >= 0 && xh < framebuffer.width() && yh >= 0 && yh < framebuffer.height()) framebuffer.set(xh, yh, red);
+        int xv = lx;
+        int yv = ly + d;
+        if (xv >= 0 && xv < framebuffer.width() && yv >= 0 && yv < framebuffer.height()) framebuffer.set(xv, yv, red);
     }
 
     framebuffer.write_tga_file("framebuffer.tga");

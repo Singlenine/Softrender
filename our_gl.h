@@ -15,6 +15,6 @@ struct IShader {
 };
 
 typedef vec4 Triangle[3]; // a triangle primitive is made of three ordered points
-void rasterize(const Triangle &clip, const IShader &shader, TGAImage &framebuffer);
+void rasterize(const Triangle &clip, const IShader &shader, TGAImage &framebuffer, std::vector<double> &zbuffer);
 
 #endif // OUR_GL_H
