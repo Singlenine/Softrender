@@ -8,8 +8,7 @@
 #include "geometry.h"
 #include "tgaimage.h"
 
-struct DepthShader : IShader
-{
+struct DepthShader : IShader {
   const Model &model;
 
   explicit DepthShader(const Model &m);
@@ -17,29 +16,16 @@ struct DepthShader : IShader
   std::pair<bool, TGAColor> fragment(const vec3 bar) const override;
 };
 
-struct SmoothShader : IShader
-{
+struct SmoothShader : IShader {
   const Model &model;
-  vec4 l; // light direction in eye coordinates
-  mat<3,3> tri;//triangle coordinates before  viewport transform
-  mat<3,3> normals;// triangle normal vectors befor viewport transform
-  vec2 varying_uv[3]; // triangle uv coordinates, written by the vertex shader, read by the fragment shader
-  vec4 varying_nrm[3]; //normal per vertex to be interpolated by the fragment shader
-  vec4 varying_shadow_clip[3];
+  vec4 l;              // light direction in view space
+  mat<3,3> tri;        // triangle vertices in view space
+  vec2 varying_uv[3];  // per-vertex uv for interpolation
+  vec4 varying_nrm[3]; // per-vertex normal in view space
 
-  mat<4,4> shadow_modelview;
-  mat<4,4> shadow_perspective;
-  mat<4,4> shadow_viewport;
-  const std::vector<double> &shadow_zbuffer;
-  int shadow_width;
-  int shadow_height;
-
-  SmoothShader(const vec3 light, const Model &m,
-               const mat<4,4> &shadow_mv, const mat<4,4> &shadow_p, const mat<4,4> &shadow_vp,
-               const std::vector<double> &shadow_buf, const int shadow_w, const int shadow_h);
+  SmoothShader(const vec3 light, const Model &m);
   vec4 vertex(const int face, const int vert);
   std::pair<bool, TGAColor> fragment(const vec3 bar) const override;
 };
-
 
 #endif

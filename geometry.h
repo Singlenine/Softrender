@@ -10,9 +10,9 @@ template<int n> struct vec {
 };
 
 template<int n> double operator*(const vec<n>& lhs, const vec<n>& rhs) {
-    double ret = 0;                         // N.B. Do not ever, ever use such for loops! They are highly confusing.
-    for (int i=n; i--; ret+=lhs[i]*rhs[i]); // Here I used them as a tribute to old-school game programmers fighting for every CPU cycle.
-    return ret;                             // Once upon a time reverse loops were faster than the normal ones, it is not the case anymore.
+    double ret = 0;                         // 注意：这种 for 写法可读性较差，通常不建议使用。
+    for (int i=n; i--; ret+=lhs[i]*rhs[i]); // 这里保留该写法，仅向曾为每个 CPU 周期优化的老派游戏程序员致敬。
+    return ret;                             // 反向循环过去可能更快，但如今通常已无性能优势。
 }
 
 template<int n> vec<n> operator+(const vec<n>& lhs, const vec<n>& rhs) {
@@ -104,7 +104,7 @@ template<int nrows,int ncols> struct mat {
     }
 
     mat<nrows,ncols> invert_transpose() const {
-        mat<nrows,ncols> adjugate_transpose; // transpose to ease determinant computation, check the last line
+        mat<nrows,ncols> adjugate_transpose; // 先转置，便于后续行列式相关计算（见最后一行）
         for (int i=nrows; i--; )
             for (int j=ncols; j--; adjugate_transpose[i][j]=cofactor(i,j));
         return adjugate_transpose/(adjugate_transpose[0]*rows[0]);
@@ -171,7 +171,7 @@ template<int nrows,int ncols> std::ostream& operator<<(std::ostream& out, const 
     return out;
 }
 
-template<int n> struct dt { // template metaprogramming to compute the determinant recursively
+template<int n> struct dt { // 使用模板元编程递归计算行列式
     static double det(const mat<n,n>& src) {
         double ret = 0;
         for (int i=n; i--; ret += src[0][i] * src.cofactor(0,i));
@@ -179,9 +179,8 @@ template<int n> struct dt { // template metaprogramming to compute the determina
     }
 };
 
-template<> struct dt<1> {   // template specialization to stop the recursion
+template<> struct dt<1> {   // 模板特化：递归终止条件
     static double det(const mat<1,1>& src) {
         return src[0][0];
     }
 };
-

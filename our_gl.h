@@ -14,7 +14,7 @@ struct IShader {
     virtual std::pair<bool,TGAColor> fragment(const vec3 bar) const = 0;
 };
 
-typedef vec4 Triangle[3]; // a triangle primitive is made of three ordered points
+typedef vec4 Triangle[3]; // 一个三角形图元由三个有序点组成
 void rasterize(const Triangle &clip, const IShader &shader, TGAImage &framebuffer, std::vector<double> &zbuffer);
 
 #endif // OUR_GL_H
